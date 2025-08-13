@@ -1,14 +1,10 @@
 import Stripe from "stripe";
 
-// Vercel serverless function: POST /api/create-payment-sheet
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
-  // Basic CORS
   const origin = req.headers.origin || "";
-  const allowed = (process.env.ALLOWED_ORIGINS || "*")
-    .split(",")
-    .map((s) => s.trim());
+  const allowed = (process.env.ALLOWED_ORIGINS || "*").split(",").map(s => s.trim());
   const isAllowed = allowed.includes("*") || allowed.includes(origin);
   res.setHeader("Access-Control-Allow-Origin", isAllowed ? origin || "*" : "");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -17,22 +13,12 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { amount, currency = "usd" } = req.body || {};
-    if (!process.env.STRIPE_SECRET_KEY) throw new Error("Missing STRIPE_SECRET_KEY");
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" });
 
-    // Init Stripe
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
-
-    // 1) Create a Customer (ephemeral for mobile PaymentSheet)
     const customer = await stripe.customers.create();
-
-    // 2) Ephemeral key for the customer
-    const ephemeralKey = await stripe.ephemeralKeys.create(
-      { customer: customer.id },
-      { apiVersion: "2024-06-20" }
-    );
-
-    // 3) Create PaymentIntent (amount in cents for USD/EUR)
+    const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customer.id }, { apiVersion: "2024-06-20" });
     const value = Math.max(200, Math.floor(Number(amount) || 0));
+
     const pi = await stripe.paymentIntents.create({
       amount: value,
       currency,
